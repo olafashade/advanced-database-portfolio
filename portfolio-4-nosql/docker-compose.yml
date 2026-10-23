@@ -22,7 +22,6 @@ services:
       MONGO_INITDB_DATABASE: meridian_bank
     volumes:
       - mongo_data:/data/db
-      # init script runs ONCE, on first start of an empty volume
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval",

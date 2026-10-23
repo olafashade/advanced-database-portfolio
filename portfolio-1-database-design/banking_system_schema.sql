@@ -1,8 +1,8 @@
--- Banking System Database Schema
--- Database: PostgreSQL
--- Based on the schema supplied for MIT 8103 Advanced Database Systems.
--- Creates tables, primary/foreign keys, constraints, defaults, and indexes.
--- The table name "transaction" is quoted because TRANSACTION is a SQL keyword.
+-- banking System Database Schema
+-- database: PostgreSQL
+-- based on the schema supplied for MIT 8103 Advanced Database Systems.
+-- creates tables, primary/foreign keys, constraints, defaults, and indexes.
+-- the table name "transaction" is quoted because TRANSACTION is a SQL keyword.
 
 BEGIN;
 
