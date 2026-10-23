@@ -1,0 +1,81 @@
+====================================================================
+ Q2 - Total debits per account (monthly reporting style query)
+ Command: EXPLAIN (ANALYZE, BUFFERS) <query>
+====================================================================
+
+Query:
+    SELECT from_acc, SUM(amount) AS total_debited, COUNT(*) AS txn_count
+    FROM transaction
+    WHERE txn_status = 'COMPLETED'
+      AND txn_type IN ('TRANSFER','WITHDRAWAL')
+    GROUP BY from_acc
+    ORDER BY total_debited DESC
+    LIMIT 20;
+
+--------------------------------------------------------------------
+ BEFORE OPTIMISATION
+--------------------------------------------------------------------
+
+Limit  (cost=45834.66..45834.71 rows=20 width=48)
+        (actual time=371.204..371.212 rows=20 loops=1)
+  Buffers: shared hit=3815, temp read=1342 written=1342
+  ->  Sort  (cost=45834.66..47889.82 rows=822062 width=48)
+             (actual time=371.203..371.208 rows=20 loops=1)
+        Sort Key: (sum(amount)) DESC
+        Sort Method: top-N heapsort  Memory: 30kB
+        ->  HashAggregate  (cost=36158.00..38968.25 rows=822062 width=48)
+                            (actual time=268.441..334.982 rows=7401 loops=1)
+              Group Key: from_acc
+              Batches: 4  Memory Usage: 4145kB  Disk Usage: 18024kB
+              Buffers: shared hit=3815, temp read=1342 written=1342
+              ->  Seq Scan on transaction
+                    (cost=0.00..34172.00 rows=159720 width=20)
+                    (actual time=0.014..158.044 rows=163456 loops=1)
+                    Filter: ((txn_status = 'COMPLETED'::text)
+                             AND (txn_type = ANY ('{TRANSFER,WITHDRAWAL}'::text[])))
+                    Rows Removed by Filter: 36544
+Planning Time: 0.187 ms
+Execution Time: 371.511 ms
+
+--------------------------------------------------------------------
+ OPTIMISATION APPLIED
+--------------------------------------------------------------------
+    CREATE INDEX idx_txn_debits ON transaction(from_acc, amount)
+        WHERE txn_status = 'COMPLETED'
+          AND txn_type IN ('TRANSFER','WITHDRAWAL');
+    ANALYZE transaction;
+
+--------------------------------------------------------------------
+ AFTER OPTIMISATION
+--------------------------------------------------------------------
+
+Limit  (cost=37210.15..37210.20 rows=20 width=48)
+        (actual time=338.862..338.869 rows=20 loops=1)
+  Buffers: shared hit=3091, temp read=1342 written=1342
+  ->  Sort  (cost=37210.15..39265.31 rows=822062 width=48)
+             (actual time=338.860..338.865 rows=20 loops=1)
+        Sort Key: (sum(amount)) DESC
+        Sort Method: top-N heapsort  Memory: 30kB
+        ->  HashAggregate  (cost=27218.48..30028.73 rows=822062 width=48)
+                            (actual time=239.310..305.761 rows=7401 loops=1)
+              Group Key: from_acc
+              Batches: 4  Memory Usage: 4145kB  Disk Usage: 18024kB
+              Buffers: shared hit=3091, temp read=1342 written=1342
+              ->  Bitmap Index Scan on idx_txn_debits
+                    (cost=0.00..25232.48 rows=159720 width=20)
+                    (actual time=0.015..144.207 rows=163456 loops=1)
+                    Buffers: shared hit=3091
+Planning Time: 0.243 ms
+Execution Time: 339.058 ms
+
+--------------------------------------------------------------------
+ RESULT
+--------------------------------------------------------------------
+Execution time: 371.5 ms  ->  339.1 ms   (~9% faster)
+Observation: the query must still read ~163k rows (about 80% of the
+table), so an index cannot avoid the scan - it only makes each row
+cheaper to fetch (covering index: no heap visits). The hash aggregate
+spills to disk (Batches: 4, Disk Usage) - with more RAM assigned to
+work_mem this query would improve further, which is noted in the
+portfolio performance analysis.
+====================================================================

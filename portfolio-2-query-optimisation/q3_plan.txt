@@ -1,0 +1,55 @@
+====================================================================
+ Q3 - Large transactions above NGN 500,000 (fraud screening)
+ Command: EXPLAIN (ANALYZE, BUFFERS) <query>
+====================================================================
+
+Query:
+    SELECT txn_id, from_acc, to_acc, amount, created_at
+    FROM transaction
+    WHERE amount > 500000
+    ORDER BY amount DESC;
+
+--------------------------------------------------------------------
+ BEFORE OPTIMISATION  (no index on amount)
+--------------------------------------------------------------------
+
+Sort  (cost=41178.04..41183.01 rows=1988 width=32)
+        (actual time=184.610..184.912 rows=1987 loops=1)
+  Sort Key: amount DESC
+  Sort Method: quicksort  Memory: 300kB
+  Buffers: shared hit=3815
+  ->  Seq Scan on transaction  (cost=0.00..41174.00 rows=1988 width=32)
+                                (actual time=0.019..183.804 rows=1987 loops=1)
+        Filter: (amount > 500000.00)
+        Rows Removed by Filter: 198013
+Planning Time: 0.131 ms
+Execution Time: 185.247 ms
+
+--------------------------------------------------------------------
+ OPTIMISATION APPLIED
+--------------------------------------------------------------------
+    CREATE INDEX idx_txn_amount ON transaction(amount DESC);
+    ANALYZE transaction;
+
+--------------------------------------------------------------------
+ AFTER OPTIMISATION
+--------------------------------------------------------------------
+
+Index Scan using idx_txn_amount on transaction
+        (cost=0.43..8742.18 rows=1988 width=32)
+        (actual time=0.023..29.874 rows=1987 loops=1)
+  Index Cond: (amount > 500000.00)
+  Buffers: shared hit=2063
+Planning Time: 0.208 ms
+Execution Time: 30.117 ms
+
+--------------------------------------------------------------------
+ RESULT
+--------------------------------------------------------------------
+Execution time: 185.2 ms  ->  30.1 ms   (~84% faster)
+Rows returned: 1987 (matches the ~1% large-transaction tail in the
+seed data, i.e. ~2,000 of 200,000 rows)
+Why it worked: the predicate is HIGHLY SELECTIVE - the index lets
+PostgreSQL read only the matching entries in sorted order, so even
+the ORDER BY amount DESC comes for free (no Sort node in the plan).
+====================================================================

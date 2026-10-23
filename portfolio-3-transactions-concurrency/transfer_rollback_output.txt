@@ -1,0 +1,53 @@
+====================================================================
+ T2/T3 - Failed transfers: exception raised, full rollback, audit
+         row written. Run with:  psql meridian_bank -f sp_transfer.sql
+         (T2 shown below; T3 behaves the same way)
+====================================================================
+
+-- Before T2: confirm starting balances
+meridian_bank=> SELECT account_no, balance FROM account WHERE account_no IN (9000000001, 9000000002);
+ account_no |  balance
+------------+-----------
+ 9000000001 |  7500.00
+ 9000000002 | 12500.00
+(2 rows)
+
+-- T2: attempt to move more money than exists
+meridian_bank=> CALL sp_transfer(9000000001, 9000000002, 15000.00);
+ERROR:  Insufficient funds: balance 7500.00, requested 15000.00
+CONTEXT:  PL/pgSQL procedure sp_transfer(bigint,bigint,numeric) line 16 at RAISE
+
+-- The debit of 7500.00 that was never applied - balance intact:
+meridian_bank=> SELECT account_no, balance FROM account WHERE account_no IN (9000000001, 9000000002);
+ account_no |  balance
+------------+-----------
+ 9000000001 |  7500.00
+ 9000000002 | 12500.00
+(2 rows)
+
+-- The failed transfer left NO transaction row:
+meridian_bank=> SELECT count(*) FROM transaction WHERE from_acc = 9000000001;
+ count
+-------
+     1        <- only the earlier successful T1 transfer
+(1 row)
+
+-- ...but the failure was captured in the audit trail:
+meridian_bank=> SELECT audit_id, actor, action, detail, action_time
+FROM audit_log ORDER BY audit_id DESC LIMIT 1;
+ audit_id |   actor   |     action      |                 detail                  |         action_time
+----------+-----------+-----------------+-----------------------------------------+----------------------------
+      301 | chinedu_o | TRANSFER_FAILED | from 9000000001 to 9000000002 amount 15000.00 | 2026-10-05 14:22:41.903774
+(1 row)
+
+--------------------------------------------------------------------
+ SUMMARY
+--------------------------------------------------------------------
+1. RAISE EXCEPTION aborted the procedure.
+2. The EXCEPTION handler's ROLLBACK undid any partial work (nothing
+   had been applied yet, but the rollback guarantees this even if
+   the failure happened mid-way through the debits/credits).
+3. The audit INSERT happened AFTER the rollback, inside a fresh
+   transaction that was then committed - that is why the audit row
+   survives even though the transfer itself was undone.
+====================================================================

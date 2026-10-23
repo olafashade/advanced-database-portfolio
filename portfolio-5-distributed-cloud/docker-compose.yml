@@ -1,0 +1,105 @@
+# =============================================================
+# docker-compose.yml - Meridian Trust Bank, Portfolio 5
+# Three-node PostgreSQL 16 HA cluster managed by Patroni,
+# with etcd as the distributed configuration store.
+#
+#   node1 -> host port 54321 (initial primary)
+#   node2 -> host port 54322 (synchronous replica)
+#   node3 -> host port 54323 (asynchronous replica, "DR/ read scale")
+#
+#   (Host ports chosen to avoid 5432, which stays free for the
+#    Portfolio 1-3 PostgreSQL instance. Container ports are still
+#    5432 internally - nothing inside the cluster changes.)
+#
+# Usage:
+#   docker compose up -d
+#   docker compose ps                  # wait until all are healthy
+#   docker exec -it node1 patronictl list
+# =============================================================
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: etcd
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd0
+      - --data-dir=/etcd-data
+      - --enable-v2=true
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd0=http://etcd:2380
+      - --initial-cluster-token=etcd-cluster-token
+      - --initial-cluster-state=new
+    volumes:
+      - etcd-data:/etcd-data
+    networks: [dbnet]
+
+  node1:
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    container_name: node1
+    hostname: node1
+    environment:
+      SCOPE: meridian
+ETCD_HOST: etcd:2379
+      ETCD_PROTOCOL: http
+      PGVERSION: "16"
+      PGPORT: "5432"
+      PGPASSWORD_SUPERUSER: secret
+      PGPASSWORD_ADMIN: secret
+      PGPASSWORD_STANDBY: secret
+      SPILO_CONFIGURATION: |
+        postgresql:
+          parameters:
+            synchronous_commit: "on"
+            synchronous_standby_names: "FIRST 1 (*)"
+    ports: ["54321:5432"]
+    volumes: [node1-data:/home/postgres/pgdata]
+    networks: [dbnet]
+    depends_on: [etcd]
+
+  node2:
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    container_name: node2
+    hostname: node2
+    environment:
+      SCOPE: meridian
+      ETCD_HOST: etcd:2379
+      ETCD_PROTOCOL: http
+      PGVERSION: "16"
+      PGPORT: "5432"
+      PGPASSWORD_SUPERUSER: secret
+      PGPASSWORD_ADMIN: secret
+      PGPASSWORD_STANDBY: secret
+    ports: ["54322:5432"]
+    volumes: [node2-data:/home/postgres/pgdata]
+    networks: [dbnet]
+    depends_on: [node1]
+
+  node3:
+    image: ghcr.io/zalando/spilo-16:3.3-p3
+    container_name: node3
+    hostname: node3
+    environment:
+      SCOPE: meridian
+      ETCD_HOST: etcd:2379
+      ETCD_PROTOCOL: http
+      PGVERSION: "16"
+      PGPORT: "5432"
+      PGPASSWORD_SUPERUSER: secret
+      PGPASSWORD_ADMIN: secret
+      PGPASSWORD_STANDBY: secret
+    ports: ["54323:5432"]
+    volumes: [node3-data:/home/postgres/pgdata]
+    networks: [dbnet]
+    depends_on: [node1]
+
+volumes:
+  etcd-data:
+  node1-data:
+  node2-data:
+  node3-data:
+
+networks:
+  dbnet:

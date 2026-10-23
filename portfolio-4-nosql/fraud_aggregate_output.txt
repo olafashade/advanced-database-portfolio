@@ -1,0 +1,79 @@
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank>
+meridian_bank> ============================================================
+
+meridian_bank>  Fraud check: >=3 LOGIN_FAILED from >=2 cities in one hour
+
+meridian_bank>  Collection : app_events (50018 documents)
+
+meridian_bank> ============================================================
+
+
+meridian_bank>
+meridian_bank> | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | | |
+meridian_bank>
+meridian_bank>
+meridian_bank> FLAGGED CUSTOMERS: 6
+
+
+meridian_bank> | | | | | | | | customer_id:      9001
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+customer_id:      9002
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+customer_id:      9003
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+customer_id:      9004
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+customer_id:      9005
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+customer_id:      9006
+hour:             2026-10-17T14:00:00.000Z
+failed_attempts:  4
+distinct_cities:  Port Harcourt, Lagos, Abuja, Kano
+window:           2026-10-17T14:00:00.000Z  ->  2026-10-17T14:41:00.000Z
+------------------------------------------------------------
+
+meridian_bank>
+meridian_bank>
+meridian_bank>
+NOTE: Customers 9001-9006 were planted by seed_events.js
+
+meridian_bank> (4 failed logins each, 4 distinct cities, within one hour),
+
+meridian_bank> so a correct aggregation MUST flag exactly these 6 customers.
+
+meridian_bank> No other customer crosses the >=3 attempts / >=2 cities rule.
+
+meridian_bank>

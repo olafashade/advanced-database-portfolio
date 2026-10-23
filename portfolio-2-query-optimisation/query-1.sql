@@ -1,0 +1,1 @@
+SELECT t.txn_id, t.txn_type, t.amount, t.txn_status, t.created_at, t.reference FROM transaction t WHERE (t.from_acc = 1002002694 OR t.to_acc = 1002002694)  AND t.created_at >= CURRENT_DATE - INTERVAL '90 days' ORDER BY t.created_at DESC;

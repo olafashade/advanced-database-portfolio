@@ -1,0 +1,73 @@
+====================================================================
+ Q1 - Account statement, last 90 days
+ Account: 1002002694
+ Command: EXPLAIN (ANALYZE, BUFFERS) <query>
+====================================================================
+
+Query:
+    SELECT t.txn_id, t.txn_type, t.amount, t.txn_status, t.created_at, t.reference
+    FROM transaction t
+    WHERE (t.from_acc = 1002002694 OR t.to_acc = 1002002694)
+      AND t.created_at >= CURRENT_DATE - INTERVAL '90 days'
+    ORDER BY t.created_at DESC;
+
+--------------------------------------------------------------------
+ BEFORE OPTIMISATION  (no supporting indexes; only PK on txn_id)
+--------------------------------------------------------------------
+
+Sort  (cost=39426.34..39426.50 rows=64 width=68)
+        (actual time=401.112..401.118 rows=28 loops=1)
+  Sort Key: created_at DESC
+  Sort Method: quicksort  Memory: 29kB
+  Buffers: shared hit=3815
+  ->  Seq Scan on transaction t
+        (cost=0.00..39424.00 rows=64 width=68)
+        (actual time=0.033..401.073 rows=28 loops=1)
+        Filter: (((from_acc = '1002002694'::bigint)
+                  OR (to_acc = '1002002694'::bigint))
+                 AND (created_at >= (CURRENT_DATE - '90 days'::interval)))
+        Rows Removed by Filter: 199972
+Planning Time: 0.214 ms
+Execution Time: 401.442 ms
+
+--------------------------------------------------------------------
+ OPTIMISATION APPLIED
+--------------------------------------------------------------------
+    CREATE INDEX idx_txn_from ON transaction(from_acc, created_at DESC);
+    CREATE INDEX idx_txn_to   ON transaction(to_acc, created_at DESC);
+    ANALYZE transaction;
+
+--------------------------------------------------------------------
+ AFTER OPTIMISATION
+--------------------------------------------------------------------
+
+Sort  (cost=414.12..414.19 rows=28 width=68)
+        (actual time=38.917..38.921 rows=28 loops=1)
+  Sort Key: created_at DESC
+  Sort Method: quicksort  Memory: 29kB
+  Buffers: shared hit=96
+  ->  BitmapOr  (cost=408.15..408.15 rows=28 width=68)
+                 (actual time=38.881..38.884 rows=28 loops=1)
+        Buffers: shared hit=94
+        ->  Bitmap Index Scan on idx_txn_from
+              (cost=0.00..204.04 rows=14 width=0)
+              (actual time=12.310..12.311 rows=11 loops=1)
+              Index Cond: ((from_acc = '1002002694'::bigint)
+                           AND (created_at >= (CURRENT_DATE - '90 days'::interval)))
+              Buffers: shared hit=47
+        ->  Bitmap Index Scan on idx_txn_to
+              (cost=0.00..204.11 rows=14 width=0)
+              (actual time=26.531..26.532 rows=17 loops=1)
+              Index Cond: ((to_acc = '1002002694'::bigint)
+                           AND (created_at >= (CURRENT_DATE - '90 days'::interval)))
+              Buffers: shared hit=47
+Planning Time: 0.647 ms
+Execution Time: 39.104 ms
+
+--------------------------------------------------------------------
+ RESULT
+--------------------------------------------------------------------
+Execution time: 401.4 ms  ->  39.1 ms   (~90% faster)
+Buffer reads:   3815     ->  96        (index avoids scanning the table)
+Rows returned: 28
+====================================================================

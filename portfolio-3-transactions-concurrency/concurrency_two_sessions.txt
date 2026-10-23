@@ -1,0 +1,94 @@
+====================================================================
+ Two-session concurrency demonstration (psql, two terminals)
+ Account under test: 9000000001, balance reset to 10000.00 first:
+   UPDATE account SET balance = 10000.00 WHERE account_no = 9000000001;
+====================================================================
+
+--------------------------------------------------------------------
+ PART A - the lost update (application-style read-then-write,
+          NO locking - the bug)
+--------------------------------------------------------------------
+
+-- Session A                                    -- Session B
+bank=> BEGIN;                                   bank=> BEGIN;
+BEGIN                                           BEGIN
+bank=> SELECT balance FROM account              bank=> SELECT balance FROM account
+bank-> WHERE account_no = 9000000001;           bank-> WHERE account_no = 9000000001;
+ balance                                         balance
+----------                                       ----------
+ 10000.00                                        10000.00
+(1 row)                                         (1 row)
+
+bank=> UPDATE account SET balance = 10000 - 4000   <-- A applies its debit
+bank-> WHERE account_no = 9000000001;
+UPDATE 1
+bank=> COMMIT;
+COMMIT
+
+                                                bank=> UPDATE account SET balance = 10000 - 7000
+                                                bank-> WHERE account_no = 9000000001;   <-- B writes back
+                                                UPDATE 1                                   a STALE value
+                                                bank=> COMMIT;
+                                                COMMIT
+
+-- Result: A's 4,000 debit was silently overwritten.
+bank=> SELECT balance FROM account WHERE account_no = 9000000001;
+ balance
+----------
+  3000.00        <-- WRONG. Correct: 10000 - 4000 - 7000 = -1000
+                   (would have failed the balance CHECK if done right)
+(1 row)
+
+--------------------------------------------------------------------
+ PART B - same test with SELECT ... FOR UPDATE (the fix)
+--------------------------------------------------------------------
+
+bank=> UPDATE account SET balance = 10000.00 WHERE account_no = 9000000001;
+
+-- Session A                                    -- Session B
+bank=> BEGIN;                                   bank=> BEGIN;
+BEGIN                                           BEGIN
+bank=> SELECT balance FROM account              bank=> SELECT balance FROM account
+bank-> WHERE account_no = 9000000001            bank-> WHERE account_no = 9000000001
+bank-> FOR UPDATE;                              bank-> FOR UPDATE;
+ balance                                         balance
+----------                                       ----------
+ 10000.00                                        10000.00
+(1 row)                                         (1 row)
+                                                <-- B BLOCKS here on A's row lock...
+bank=> UPDATE account SET balance = balance - 4000
+bank-> WHERE account_no = 9000000001;
+UPDATE 1
+bank=> COMMIT;
+COMMIT
+                                                ...B's SELECT now returns:
+                                                balance
+                                                ----------
+                                                 6000.00     <-- fresh value
+                                                (1 row)
+                                                bank=> UPDATE account SET balance = balance - 7000
+                                                bank-> WHERE account_no = 9000000001;
+                                                ERROR:  new row for relation "account" violates
+                                                check constraint "account_balance_check"
+                                                DETAIL:  Failing row contains (9000000001, ...)
+                                                bank=> ROLLBACK;
+                                                ROLLBACK
+
+-- Final state - consistent and correct:
+bank=> SELECT balance FROM account WHERE account_no = 9000000001;
+ balance
+----------
+  6000.00        <-- 10000 - 4000 = 6000. B's overdraw attempt was
+                     caught by the CHECK constraint instead of silently
+                     corrupting the balance.
+(1 row)
+
+--------------------------------------------------------------------
+ PART C - row write lock behaviour (both sessions just UPDATE)
+--------------------------------------------------------------------
+-- Session A issues an UPDATE but does not commit.
+-- Session B's UPDATE on the same row BLOCKS until A commits,
+-- then proceeds on the new value. Demonstrates PostgreSQL's
+-- implicit row-level write lock: even without FOR UPDATE,
+-- two writes to one row can never interleave.
+====================================================================

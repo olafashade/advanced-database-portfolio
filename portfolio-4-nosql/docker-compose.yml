@@ -1,0 +1,37 @@
+# =============================================================
+# docker-compose.yml - Meridian Trust Bank, Portfolio 4
+# MongoDB 7 with authentication enabled, persistent data volume,
+# and automatic database/user initialisation.
+#
+# Usage:
+#   docker compose up -d          # start
+#   docker compose logs -f mongo  # watch startup
+#   docker compose down           # stop (data kept in volume)
+#   docker compose down -v        # stop AND delete all data
+# =============================================================
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: meridian-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: secret
+      MONGO_INITDB_DATABASE: meridian_bank
+    volumes:
+      - mongo_data:/data/db
+      # init script runs ONCE, on first start of an empty volume
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval",
+             "db.adminCommand('ping')",
+             "-u", "admin", "-p", "secret", "--authenticationDatabase", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo_data:

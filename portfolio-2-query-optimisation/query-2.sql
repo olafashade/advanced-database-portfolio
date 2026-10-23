@@ -1,0 +1,1 @@
+SELECT from_acc, SUM(amount) AS total_debited, COUNT(*) AS txn_count FROM transaction WHERE txn_status = 'COMPLETED'  AND txn_type IN ('TRANSFER','WITHDRAWAL') GROUP BY from_acc ORDER BY total_debited DESC LIMIT 20;

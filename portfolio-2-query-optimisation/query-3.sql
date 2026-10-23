@@ -1,0 +1,1 @@
+SELECT txn_id, from_acc, to_acc, amount, created_at FROM transaction WHERE amount > 500000 ORDER BY amount DESC;
