@@ -4,7 +4,11 @@
 **Institution:** MIVA Open University — School of Postgraduate Studies  
 **Programme:** Master of Information Technology  
 **Academic Session:** 2026/2027  
-**Student Assessment Type:** Individual Practical Database Portfolio (40 Marks)  
+**Student Name:** Olalekan Fashade  
+**Student ID:** 301902317  
+**Student Email:** o.fashade2317@miva.edu.ng  
+**Submission Type:** Individual Practical Database Portfolio (40 Marks)  
+**GitHub Repository:** https://github.com/olafashade/advanced-database-portfolio  
 **Case Study Organisation:** Meridian Trust Bank  
 
 ---
